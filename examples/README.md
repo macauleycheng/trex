@@ -258,14 +258,65 @@ c.push_packets(pkts, ports=[2])  # 從 port 2 送
 > 把 veth 換成實體卡時，cfg 的 `interfaces:` 改成實體卡名（如
 > `ens19`、`ens20`…）即可，Python 選 port 的用法完全不變。
 
-## 下一步：對真實設備收送
+## DPDK 模式（實體 server 正式使用）
 
-目前是軟體 loopback。要對你的實體系統 / DUT 收送封包時：
+### TRex 與 DPDK 的關係
 
-1. 選一張閒置實體網卡（例如目前 DOWN 的 `ens19`）。
-2. 用 `~/trex/v3.06/dpdk_setup_ports.py -i` 互動式產生綁 DPDK 的設定檔，
-   或繼續用軟體模式把 `--iface` 指向實體網卡（效能較低但設定簡單）。
-3. 把實體網卡接到你的設備，TRex port 0 送、port 1（或設備回送）收。
+**DPDK 是 TRex 的核心，不是選配。** TRex 本來就架在 DPDK 之上，高效能
+（打到線速 10G/40G/100G）的原因就是透過 DPDK 繞過 Linux kernel 網路堆疊，
+在使用者空間直接操作網卡。
 
-> ⚠️ 綁 DPDK 會讓 Linux「看不到」那張網卡（被 TRex 獨佔）。務必**不要**動到
-> 管理網卡 `ens18`，否則會斷線。
+- **DPDK 已內建在 TRex 裡**，不必另外安裝 DPDK library（`~/trex/v3.06`
+  本身就含）。
+- 本 repo 範例用的 `--software`（af_packet）是**例外模式**，專給學習、功能
+  驗證、veth loopback 用；效能只有十幾萬～數十萬 pps。
+- **正式對實體設備打流量 / 測效能，要用 DPDK 模式**才能衝到線速。
+
+### 兩種模式對照
+
+| | DPDK 模式（預設） | 軟體模式 `--software`（本 repo 範例） |
+|---|---|---|
+| driver | DPDK 使用者空間 PMD | af_packet（kernel socket） |
+| 網卡 | 被 TRex 獨佔，從 Linux 消失 | 繼續用一般介面名 |
+| 效能 | 線速（10G/40G/100G） | 十幾萬～數十萬 pps |
+| 用途 | 正式效能測試、對實體 DUT | 學習、功能驗證、loopback |
+| 前置 | 綁網卡到 DPDK + hugepages | 無，直接用介面名 |
+
+### 在實體 server 上切到 DPDK 的步驟
+
+1. **挑閒置實體網卡**（成對最佳，才能本機 loopback 自測；單張只能對外打
+   到 DUT）。**絕對不要綁管理網卡**，綁了 Linux 會看不到它、SSH 會斷。
+
+2. **設定 hugepages**（DPDK 需要）：
+   ```bash
+   # 暫時 (重開機失效)
+   sudo sysctl -w vm.nr_hugepages=2048
+   # 永久: 寫進 /etc/sysctl.conf 或 grub 參數
+   ```
+
+3. **用內建工具互動式產生 DPDK 設定檔**：
+   ```bash
+   cd ~/trex/v3.06
+   sudo ./dpdk_setup_ports.py -i
+   ```
+   它會列出可用網卡、引導你挑要綁的 port、自動處理 DPDK 綁定，並產生
+   `/etc/trex_cfg.yaml`。
+
+4. **啟動 DPDK 模式 server**（注意：**不加** `--software`）：
+   ```bash
+   cd ~/trex/v3.06
+   sudo ./t-rex-64 -i           # 讀 /etc/trex_cfg.yaml, 走 DPDK
+   ```
+
+5. **範例完全不用改**。DPDK 模式下 port 一樣編號成 0,1,2...，Python 選 port
+   （`ports=[0]`）、送收封包、壓力測試的用法與軟體模式一模一樣 —— 差別只在
+   底層 driver 與速率上限。
+
+### DPDK 綁定提醒
+
+- 綁 DPDK 會讓該網卡從 Linux kernel「消失」，直到 TRex 結束才還回來。
+- 綁錯管理網卡 → 主機失聯。綁定前務必確認 PCI 位址 / 介面名不是管理介面。
+- 若要把網卡還給 Linux：`sudo ~/trex/v3.06/dpdk_nic_bind.py -u <PCI>` 後重新
+  綁回原生 driver（或直接重開機）。
+- 虛擬機（virtio/vmxnet3）也支援 DPDK，但效能受 hypervisor 限制，不及實體
+  機線速。
