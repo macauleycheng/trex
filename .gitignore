@@ -1,0 +1,23 @@
+# === TRex 本體與下載產物 (不進版控, 體積大/含近 100MB 二進位) ===
+v3.06/
+v*.tar.gz
+
+# === 下載 TRex 時產生的憑證暫存檔 ===
+trex-ca-bundle.pem
+hydrantid-chain.pem
+hydrantid.p7c
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# === 編輯器 / 系統 ===
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# === TRex 執行期產物 ===
+*.pcap
