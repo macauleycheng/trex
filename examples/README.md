@@ -123,6 +123,10 @@ python3 01_l2_raw.py
 - `proto_common.py` — 協定範例共用的「送出 + 擷取 + 解析」工具。
 - `trex_server.sh` — server/veth 管理腳本。
 
+壓力測試 / 高速率流量範例在 **[`stress/`](stress/)** 子目錄（ARP flood、
+DHCP starvation、multicast 壓力、SYN flood、混合線速），詳見
+[`stress/README.md`](stress/README.md)。
+
 ## 兩種核心 API 用法
 
 **(1) Stream 模式（適合效能測試 / 持續流量）**
