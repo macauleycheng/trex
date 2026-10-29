@@ -171,6 +171,48 @@ keepalive / announcement，以及驗證「對端到底收到什麼」。
 4. **收封包解析要防呆**：`proto_common.send_and_capture()` 對自動解析
    （`Ether(bytes)`）包了 try/except，解析失敗就印 hex，不中斷流程。
 
+## 從其他機器遠端連線
+
+TRex 是 server + remote client 架構。client 可以在另一台機器上跑，透過
+RPC 連到 TRex server 操作（封包仍從 server 那台的網卡進出，client 只是
+遙控器）。
+
+`trex_path.py` 支援兩個環境變數，遠端連線不必改程式碼：
+
+| 環境變數 | 用途 | 預設 |
+|----------|------|------|
+| `TREX_SERVER` | TRex server 的 IP | `127.0.0.1` |
+| `TREX_ROOT` | 本機 TRex 安裝路徑 | `~/trex/v3.06` |
+
+在**遠端 client 那台**跑範例：
+
+```bash
+# 連到 TRex server (192.168.40.131)
+TREX_SERVER=192.168.40.131 python3 00_connect_test.py
+
+# server 位址 + 本機 TRex 裝在別處
+TREX_SERVER=192.168.40.131 TREX_ROOT=/opt/trex/v3.06 python3 01_l2_raw.py
+```
+
+遠端連線的前置條件：
+
+1. **client 那台要有 TRex 的 Python client 套件**。最簡單是遠端也裝一份
+   TRex（`automation/trex_control_plane/interactive` 那包），用 `TREX_ROOT`
+   指到它。client 端不需要跑 server、不需要網卡、不需要 DPDK。
+2. **server 要監聽對外位址**（本 repo 的啟動方式已 bind `0.0.0.0:4500` 與
+   `0.0.0.0:4501`，預設即可）。
+3. **防火牆放行 TCP 4500 與 4501**：4501 是 RPC(命令)，4500 是 async(統計
+   推播)。只開一個會「連得上但收不到統計」。
+4. **同一時間預設一個 client 擁有一組 port**。多 client 要操作同組 port
+   需 `force` 搶占，或各自操作不同 port。
+
+檢查 server 監聽與防火牆：
+
+```bash
+ss -tlnp | grep -E ':4500|:4501'     # 應看到 0.0.0.0:4500 / 0.0.0.0:4501
+sudo ufw status                       # 若啟用, 需 allow 4500/4501
+```
+
 ## 多卡綁定與選 port（情境 A）
 
 TRex 的網卡模型要點：
