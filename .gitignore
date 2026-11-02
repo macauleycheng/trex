@@ -21,3 +21,7 @@ __pycache__/
 
 # === TRex 執行期產物 ===
 *.pcap
+
+# === control_plane 範例執行期產物 (netns/ExaBGP 設定與日誌, 每次跑會重生) ===
+examples/control_plane/log/
+examples/control_plane/conf/
